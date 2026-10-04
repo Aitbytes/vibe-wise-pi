@@ -11,6 +11,11 @@ import sys
 import tempfile
 
 
+# The tests import-load this module; keep __pycache__ out of the installed
+# package clone (upstream did the same).
+sys.dont_write_bytecode = True
+
+
 def state_directory(cwd):
     """Find the nearest notes directory without crossing a Git project boundary.
 
