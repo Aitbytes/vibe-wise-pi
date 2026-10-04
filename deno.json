@@ -1,0 +1,6 @@
+{
+  "nodeModulesDir": "auto",
+  "imports": {
+    "@earendil-works/pi-coding-agent": "npm:@earendil-works/pi-coding-agent"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "vibe-wise-pi",
+  "version": "0.1.0",
+  "description": "VibeWise for pi: learn how to build software while the AI writes the code. Pi port of nykooi1/vibe-wise (Claude Code plugin, v0.1.43).",
+  "keywords": ["pi-package", "vibe-wise", "vibewise", "learning", "skills"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Aitbytes/vibe-wise-pi.git"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "pi": {
+    "extensions": ["./extensions"],
+    "skills": ["./skills"]
+  }
+}
