@@ -36,6 +36,13 @@ const EXTENSION_DIR = path.dirname(fileURLToPath(import.meta.url));
 const LEARN_GUIDE = path.resolve(EXTENSION_DIR, "..", "skills", "learn", "SKILL.md");
 
 const PAUSED_PATTERN = /^Learning mode:\s*paused\s*$/i;
+// Python's open(encoding="utf-8") raises on invalid UTF-8; Node's utf8 string
+// decoding never throws, so decode the buffer with a fatal decoder to keep the
+// upstream contract: invalid text is not evidence of active learning.
+const UTF8 = new TextDecoder("utf-8", { fatal: true });
+// Python's universal newlines split lone \r too; \r?\n would miss a paused
+// marker in CR-only files.
+const LINE_SPLIT = /\r\n|\r|\n/;
 
 /**
  * Check activation without copying learner notes into the injected message.
@@ -54,12 +61,12 @@ function profileIsActive(profilePath: string): boolean {
 
 	let text: string;
 	try {
-		text = fs.readFileSync(profilePath, "utf8");
+		text = UTF8.decode(fs.readFileSync(profilePath));
 	} catch {
 		return false;
 	}
 	let hasContent = false;
-	for (const line of text.split(/\r?\n/)) {
+	for (const line of text.split(LINE_SPLIT)) {
 		hasContent = hasContent || line.trim().length > 0;
 		if (PAUSED_PATTERN.test(line)) return false;
 	}

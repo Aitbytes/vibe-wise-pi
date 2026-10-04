@@ -65,16 +65,41 @@ Deno.test("session_start queues restore for an active profile", () => {
 	fs.rmSync(dir, { recursive: true, force: true });
 });
 
-Deno.test("no restore for paused, empty, or missing state", () => {
-	for (const profile of [PAUSED, null]) {
-		const dir = tmpProject(profile);
-		process.chdir(dir);
-		const { pi, sent, fire } = makeHarness();
-		vibeWise(pi as never);
-		fire("session_start");
-		if (sent.length !== 0) throw new Error("expected silence");
-		fs.rmSync(dir, { recursive: true, force: true });
-	}
+Deno.test("paused profile produces no restore", () => {
+	const dir = tmpProject(PAUSED);
+	process.chdir(dir);
+	const { pi, sent, fire } = makeHarness();
+	vibeWise(pi as never);
+	fire("session_start");
+	if (sent.length !== 0) throw new Error("expected silence");
+	fs.rmSync(dir, { recursive: true, force: true });
+});
+
+Deno.test("invalid UTF-8 profile produces no restore (#2)", () => {
+	// Upstream test: b"\xff\xfe" must not activate learning. Node string
+	// decoding would substitute U+FFFD and count as content.
+	const dir = tmpProject(null);
+	fs.writeFileSync(path.join(dir, ".vibe-wise", "profile.md"), new Uint8Array([0xff, 0xfe]));
+	process.chdir(dir);
+	const { pi, sent, fire } = makeHarness();
+	vibeWise(pi as never);
+	fire("session_start");
+	if (sent.length !== 0) throw new Error("invalid UTF-8 must not activate learning");
+	fs.rmSync(dir, { recursive: true, force: true });
+});
+
+Deno.test("CR-only line endings honor the paused marker (#2)", () => {
+	const dir = tmpProject(null);
+	fs.writeFileSync(
+		path.join(dir, ".vibe-wise", "profile.md"),
+		"# Learner Profile\rLearning mode: paused\rOnboarding: complete\r",
+	);
+	process.chdir(dir);
+	const { pi, sent, fire } = makeHarness();
+	vibeWise(pi as never);
+	fire("session_start");
+	if (sent.length !== 0) throw new Error("paused marker in CR-only file must be found");
+	fs.rmSync(dir, { recursive: true, force: true });
 });
 
 Deno.test("legacy .sensible-vibes state is restored in place", () => {
