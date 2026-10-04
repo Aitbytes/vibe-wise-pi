@@ -21,6 +21,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "skills/reset/reset.py"
 BRIDGE = ROOT / "tests/print_state.ts"
+sys.dont_write_bytecode = True  # keep __pycache__ out of the package clone
 spec = importlib.util.spec_from_file_location("vibe_wise_reset", SCRIPT)
 reset_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(reset_module)

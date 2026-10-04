@@ -11,8 +11,9 @@ import sys
 import tempfile
 
 
-# The tests import-load this module; keep __pycache__ out of the installed
-# package clone (upstream did the same).
+# Upstream parity. Note: this cannot prevent caching of this module itself
+# (the loader compiles it before the body runs); the tests set
+# sys.dont_write_bytecode before import-loading this file.
 sys.dont_write_bytecode = True
 
 
