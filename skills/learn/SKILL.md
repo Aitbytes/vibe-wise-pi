@@ -17,11 +17,11 @@ only an explicit request to skip or pause bypasses it.
 Do not switch to a subagent or require manual coding by default.
 
 Use the read tool for skill guides instead of printing them with bash `cat`.
-List the state directory (for example with `ls`) to discover optional
-learner-state files before reading them. A missing `.vibe-wise/` directory is
-normal first-time setup, not an error. If a shell check is necessary, handle
-absence with an explicit conditional that succeeds; don't run `ls` on a
-possibly missing directory or hide actual read failures.
+Discover optional learner-state files before reading them, tolerating a missing
+directory: `find ".vibe-wise" -maxdepth 1 -type f 2>/dev/null` succeeds and
+prints nothing when `.vibe-wise/` doesn't exist yet — that output means normal
+first-time setup, not an error. Never hide failures for files that do exist:
+a failed read of an existing file is a real error, not an empty state.
 Keep guide reads separate from optional state checks so a missing file doesn't
 make a successful instruction read look like a failed tool call.
 
@@ -33,7 +33,7 @@ stopping at the nearest `.git` directory or file (including a worktree root).
 Use the nearest existing state directory within that boundary. Keep using legacy
 notes in place; never merge, move, or reset them automatically. If there is none,
 create `.vibe-wise/` at the Git root, or current directory without Git. Do not use
-state from a parent repository, another worktree, or the installed plugin folder.
+state from a parent repository, another worktree, or the installed package folder.
 Do not follow symlinked state directories or files; explain the issue instead.
 
 If `profile.md` exists, read it and `project-map.md`. Search the entire `progress.md`
