@@ -1,5 +1,5 @@
 ---
-name: reset
+name: vibe-wise-reset
 description: Back up this project's learning notes and restart onboarding after confirmation. Does not reset application code.
 disable-model-invocation: true
 ---

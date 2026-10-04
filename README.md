@@ -13,7 +13,7 @@ This is a port of [nykooi1/vibe-wise](https://github.com/nykooi1/vibe-wise) (a C
 | `skills/learn` + `skills/reset` skills | Same skills, adapted to pi tooling (`read` tool, no `${CLAUDE_PLUGIN_ROOT}`, harness-agnostic pickers) |
 | `hooks/session_start.py` (SessionStart hook) | `extensions/vibe-wise.ts` — pi extension restoring learning context on `session_start` and `session_compact` |
 | `.claude-plugin/plugin.json` + marketplace | `package.json` with a `pi` manifest (`pi install`) |
-| `/vibe-wise:learn`, `/vibe-wise:reset` | `/skill:learn`, `/skill:reset` |
+| `/vibe-wise:learn`, `/vibe-wise:reset` | `/skill:vibe-wise-learn`, `/skill:vibe-wise-reset` |
 
 State format is unchanged: notes still live in `.vibe-wise/` (legacy `.sensible-vibes/` is still read in place), so you can move between the Claude Code plugin and this port without losing learning history.
 
@@ -41,16 +41,16 @@ For a single project instead of globally, add `-l` (writes to `.pi/settings.json
 Start in your project with:
 
 ```text
-/skill:learn
+/skill:vibe-wise-learn
 ```
 
 Setup asks one question at a time; pick **Use defaults** to skip preference setup. Then ask the agent to build something. Starting fresh or joining an unfamiliar repository both work — for an existing repository, the agent first inspects the code and sketches a small system map.
 
 **Automatic context restore:** once learning is active (a non-empty `.vibe-wise/profile.md` without `Learning mode: paused`), the bundled extension silently re-injects reading instructions whenever you start or resume a session in that project, and after compaction — including mid-run compactions (context overflow, threshold), which use in-run delivery so a continued run sees the restored guardrails. Restoration is invisible by design (it mirrors the original hook's `additionalContext`); you can confirm it by asking the agent what stage your learning is at, or by checking for the `vibe-wise-restore` entry in the session file once it has been delivered (with your next prompt after an idle restore, or immediately after a mid-run compaction).
 
-Reset learning with `/skill:reset`. It previews what will change, asks for explicit confirmation, backs up your notes under `.vibe-wise/backups/`, and restarts onboarding. Source code is never touched.
+Reset learning with `/skill:vibe-wise-reset`. It previews what will change, asks for explicit confirmation, backs up your notes under `.vibe-wise/backups/`, and restarts onboarding. Source code is never touched.
 
-Pause anytime with "Pause learning"; resume with `/skill:learn`. Preferences, learning notes, and the project map live in `.vibe-wise/` — add it to your `.gitignore` to keep notes out of Git; the package won't change it silently.
+Pause anytime with "Pause learning"; resume with `/skill:vibe-wise-learn`. Preferences, learning notes, and the project map live in `.vibe-wise/` — add it to your `.gitignore` to keep notes out of Git; the package won't change it silently.
 
 ## Differences from the Claude Code plugin
 
