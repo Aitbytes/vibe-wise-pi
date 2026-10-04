@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  python-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deno (needed by the state-agreement cross-check)
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Reset helper + state-agreement tests
+        run: python3 -m unittest discover -s tests -v
+
+  deno-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type check extension
+        run: deno check extensions/vibe-wise.ts
+      - name: Extension behavior tests
+        run: deno test --allow-read --allow-write --allow-env tests/vibe-wise.test.ts
