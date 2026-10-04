@@ -77,9 +77,10 @@ function profileIsActive(profilePath: string): boolean {
 /**
  * Find the nearest notes directory without crossing a Git project boundary.
  * Port of `state_directory` from hooks/session_start.py. Must stay in sync
- * with skills/reset/reset.py, which implements the same lookup.
+ * with skills/reset/reset.py, which implements the same lookup (enforced by
+ * tests/test_state_agreement.py). Exported for tests.
  */
-function stateDirectory(cwd: string): string | null {
+export function stateDirectory(cwd: string): string | null {
 	let current = path.resolve(cwd);
 	for (;;) {
 		// Prefer the new name at the nearest location; keep legacy notes in place.
