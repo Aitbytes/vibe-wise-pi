@@ -10,19 +10,28 @@ import * as path from "node:path";
 import vibeWise from "../extensions/vibe-wise.ts";
 
 type SentMessage = { customType: string; content: string; display: boolean };
+type Delivery = "nextTurn" | "steer";
 
-function makeHarness() {
-	const sent: SentMessage[] = [];
-	const handlers: Record<string, () => void> = {};
+type RestoreMessage = SentMessage & { details?: unknown };
+
+function makeHarness(opts: { isIdle?: () => boolean } = {}) {
+	const sent: Array<{ message: RestoreMessage; options: { deliverAs: Delivery } }> = [];
+	const handlers: Record<string, (event: unknown, ctx: unknown) => void> = {};
 	const pi = {
-		on: (event: string, handler: () => void) => {
+		on: (event: string, handler: (event: unknown, ctx: unknown) => void) => {
 			handlers[event] = handler;
 		},
-		sendMessage: (message: SentMessage) => {
-			sent.push(message);
+		sendMessage: (message: RestoreMessage, options: { deliverAs: Delivery }) => {
+			sent.push({ message, options });
 		},
 	};
-	return { pi, sent, fire: (event: string) => handlers[event]?.() };
+	const ctx = { isIdle: opts.isIdle ?? (() => true) };
+	return {
+		pi,
+		sent,
+		// Events carry (event, ctx); pass a fresh event object each time.
+		fire: (event: string, eventArg: unknown = {}) => handlers[event]?.(eventArg, ctx),
+	};
 }
 
 function tmpProject(profile: string | null, legacy = false): string {
@@ -45,7 +54,7 @@ Deno.test("session_start queues restore for an active profile", () => {
 	vibeWise(pi as never);
 	fire("session_start");
 	if (sent.length !== 1) throw new Error(`expected 1 message, got ${sent.length}`);
-	const message = sent[0];
+	const message = sent[0].message;
 	if (message.display !== false) throw new Error("restore must be invisible");
 	if (!message.content.includes("State directory: " + path.join(dir, ".vibe-wise"))) {
 		throw new Error("message must point at the state directory");
@@ -74,7 +83,7 @@ Deno.test("legacy .sensible-vibes state is restored in place", () => {
 	const { pi, sent, fire } = makeHarness();
 	vibeWise(pi as never);
 	fire("session_start");
-	if (sent.length !== 1 || !sent[0].content.includes(".sensible-vibes")) {
+	if (sent.length !== 1 || !sent[0].message.content.includes(".sensible-vibes")) {
 		throw new Error("legacy state must be used in place");
 	}
 	fs.rmSync(dir, { recursive: true, force: true });
@@ -98,7 +107,66 @@ Deno.test("session_compact re-injects restore after compaction", () => {
 	process.chdir(dir);
 	const { pi, sent, fire } = makeHarness();
 	vibeWise(pi as never);
-	fire("session_compact");
+	fire("session_compact", { reason: "manual", willRetry: false });
 	if (sent.length !== 1) throw new Error("compaction must re-inject context");
+	fs.rmSync(dir, { recursive: true, force: true });
+});
+
+Deno.test("mid-run compaction uses steer delivery, not nextTurn (#1)", () => {
+	const dir = tmpProject(ACTIVE);
+	process.chdir(dir);
+	for (const [event, isIdle] of [
+		[{ reason: "threshold", willRetry: false }, false],
+		[{ reason: "overflow", willRetry: true }, true],
+	] as const) {
+		const { pi, sent, fire } = makeHarness({ isIdle: () => isIdle });
+		vibeWise(pi as never);
+		fire("session_compact", event);
+		if (sent.length !== 1) throw new Error(`expected steer delivery for ${event.reason}`);
+		if (sent[0].options.deliverAs !== "steer") {
+			throw new Error(`${event.reason} compaction must use steer delivery`);
+		}
+	}
+	fs.rmSync(dir, { recursive: true, force: true });
+});
+
+Deno.test("idle manual compaction keeps nextTurn delivery (#1)", () => {
+	const dir = tmpProject(ACTIVE);
+	process.chdir(dir);
+	const { pi, sent, fire } = makeHarness({ isIdle: () => true });
+	vibeWise(pi as never);
+	fire("session_compact", { reason: "manual", willRetry: false });
+	if (sent.length !== 1 || sent[0].options.deliverAs !== "nextTurn") {
+		throw new Error("idle manual compaction must use nextTurn");
+	}
+	fs.rmSync(dir, { recursive: true, force: true });
+});
+
+Deno.test("no duplicate restore on the compaction-at-first-prompt path (#1/S5)", () => {
+	const dir = tmpProject(ACTIVE);
+	process.chdir(dir);
+	const { pi, sent, fire } = makeHarness({ isIdle: () => true });
+	vibeWise(pi as never);
+	fire("session_start"); // queues restore #1 (nextTurn)
+	// prompt() checks compaction before draining pending messages and before
+	// before_agent_start fires, so the pending flag must suppress a second queue.
+	fire("session_compact", { reason: "threshold", willRetry: false });
+	if (sent.length !== 1) {
+		throw new Error(`expected 1 queued restore, got ${sent.length}`);
+	}
+	fs.rmSync(dir, { recursive: true, force: true });
+});
+
+Deno.test("pending flag clears at before_agent_start so later compactions re-queue", () => {
+	const dir = tmpProject(ACTIVE);
+	process.chdir(dir);
+	const { pi, sent, fire } = makeHarness({ isIdle: () => true });
+	vibeWise(pi as never);
+	fire("session_start");
+	fire("before_agent_start"); // startup restore delivered with this prompt
+	fire("session_compact", { reason: "manual", willRetry: false });
+	if (sent.length !== 2) {
+		throw new Error(`expected startup + post-delivery compaction restores, got ${sent.length}`);
+	}
 	fs.rmSync(dir, { recursive: true, force: true });
 });

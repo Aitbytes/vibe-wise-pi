@@ -46,7 +46,7 @@ Start in your project with:
 
 Setup asks one question at a time; pick **Use defaults** to skip preference setup. Then ask the agent to build something. Starting fresh or joining an unfamiliar repository both work — for an existing repository, the agent first inspects the code and sketches a small system map.
 
-**Automatic context restore:** once learning is active (a non-empty `.vibe-wise/profile.md` without `Learning mode: paused`), the bundled extension silently re-injects reading instructions whenever you start or resume a session in that project, and after compaction. The agent then reloads your profile, project map, and pending decisions before coding. Restoration is invisible by design (it mirrors the original hook's `additionalContext`); you can confirm it by asking the agent what stage your learning is at, or by checking for the `vibe-wise-restore` entry in the session file.
+**Automatic context restore:** once learning is active (a non-empty `.vibe-wise/profile.md` without `Learning mode: paused`), the bundled extension silently re-injects reading instructions whenever you start or resume a session in that project, and after compaction — including mid-run compactions (context overflow, threshold), which use in-run delivery so a continued run sees the restored guardrails. Restoration is invisible by design (it mirrors the original hook's `additionalContext`); you can confirm it by asking the agent what stage your learning is at, or by checking for the `vibe-wise-restore` entry in the session file once it has been delivered (with your next prompt after an idle restore, or immediately after a mid-run compaction).
 
 Reset learning with `/skill:reset`. It previews what will change, asks for explicit confirmation, backs up your notes under `.vibe-wise/backups/`, and restarts onboarding. Source code is never touched.
 
@@ -54,7 +54,7 @@ Pause anytime with "Pause learning"; resume with `/skill:learn`. Preferences, le
 
 ## Differences from the Claude Code plugin
 
-- Restores happen via a queued invisible message (`deliverAs: "nextTurn"`) instead of `SessionStart` `additionalContext`; no turn is triggered.
+- Restores use two delivery modes: idle sessions (start/resume/manual `/compact`) queue an invisible message for the next user prompt; mid-run compactions (overflow recovery, threshold between tool calls) use `steer` delivery so the continued run sees the restored context — no turn is triggered in either case.
 - Interactive pickers (Claude Code's `AskUserQuestion`) fall back to plain-text questions when the host doesn't provide an equivalent UI.
 - No marketplace auto-update; update with `pi update git:github.com/Aitbytes/vibe-wise-pi` (pinned refs don't move automatically — re-run `pi install` with a new ref).
 

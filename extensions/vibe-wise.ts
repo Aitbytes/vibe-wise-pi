@@ -7,10 +7,15 @@
  * notes, this injects reading instructions so the agent restores the
  * learner's profile, project map, and pending decisions before coding.
  *
- * The hook emitted `hookSpecificOutput.additionalContext`; the pi
- * equivalent is a queued custom message (`deliverAs: "nextTurn"`) that
- * participates in LLM context without triggering a turn. Like the hook,
- * this extension does not teach, write notes, or parse transcripts.
+ * The hook emitted `hookSpecificOutput.additionalContext`, which Claude
+ * Code prepended to the model context of the continued conversation.
+ * Pi has no single equivalent: idle-session restores use a queued custom
+ * message (`deliverAs: "nextTurn"`, delivered with the next user prompt),
+ * while mid-run compactions (overflow retry, threshold between tool calls)
+ * continue the current run without another prompt, so they use `steer`
+ * delivery — injected after the current assistant turn's tool calls,
+ * before the next LLM call. Like the hook, this extension does not
+ * teach, write notes, or parse transcripts.
  *
  * Copyright (c) 2026 Noah Kim, Aitbytes. MIT license.
  */
@@ -20,6 +25,7 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type {
+	BeforeAgentStartEvent,
 	ExtensionAPI,
 	SessionCompactEvent,
 	SessionStartEvent,
@@ -103,7 +109,6 @@ function restorationMessage(state: string): {
 	// Installing the package alone doesn't enable learning in every repository.
 	// First-time onboarding happens through the Learn skill, not this extension.
 	if (!profileIsActive(path.join(state, "profile.md"))) return null;
-
 	// Bootstrap from source files instead of emitting partial notes or an
 	// incomplete topic index. Output size is independent of learning history.
 	const content = [
@@ -121,16 +126,28 @@ function restorationMessage(state: string): {
 }
 
 export default function (pi: ExtensionAPI) {
-	const restore = () => {
+	// A nextTurn-queued restore is delivered with the next user prompt;
+	// before_agent_start is that delivery moment. The flag prevents double
+	// injection on the compaction-at-first-prompt path, where session_compact
+	// fires before prompt() drains previously queued messages.
+	let pendingRestore = false;
+
+	pi.on("before_agent_start", async (_event: BeforeAgentStartEvent) => {
+		pendingRestore = false;
+	});
+
+	const restore = (deliverAs: "nextTurn" | "steer") => {
 		// Use the process working directory, same project pi resolved at startup.
 		const state = stateDirectory(process.cwd());
 		if (state === null) return;
+		if (deliverAs === "nextTurn") {
+			if (pendingRestore) return;
+			pendingRestore = true;
+		}
 		const message = restorationMessage(state);
 		if (!message) return;
 		try {
-			// Queue for the next user prompt without interrupting or triggering
-			// a turn — the semantic equivalent of SessionStart additionalContext.
-			pi.sendMessage(message, { deliverAs: "nextTurn" });
+			pi.sendMessage(message, { deliverAs });
 		} catch {
 			// Learning should never prevent a coding session from starting.
 		}
@@ -138,12 +155,20 @@ export default function (pi: ExtensionAPI) {
 
 	// startup | reload | new | resume | fork  ↔  hook matcher startup|resume|clear|compact|fork
 	pi.on("session_start", async (_event: SessionStartEvent) => {
-		restore();
+		// No turn is in flight; deliver with the user's next prompt.
+		restore("nextTurn");
 	});
 
 	// Compaction summarizes earlier context away; re-inject the restore
 	// instructions so pending decisions survive, like the hook's compact event.
-	pi.on("session_compact", async (_event: SessionCompactEvent) => {
-		restore();
+	pi.on("session_compact", async (event: SessionCompactEvent, ctx) => {
+		// Mid-run compaction (overflow recovery retry, or threshold between tool
+		// calls) continues the current run without another user prompt. A
+		// nextTurn queue would arrive too late — or never, since pending
+		// nextTurn messages do not trigger a continuation. Steer is delivered
+		// after the current assistant turn's tool calls, before the next LLM
+		// call, which is the post-compaction injection point.
+		const midRun = event.willRetry || !ctx.isIdle();
+		restore(midRun ? "steer" : "nextTurn");
 	});
 }
