@@ -9,6 +9,11 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+# Prevent __pycache__ in the installed package clone: the flag must be set
+# before reset.py's loader compiles it (a flag inside reset.py itself cannot
+# prevent its own caching — get_code() runs before the module body).
+sys.dont_write_bytecode = True
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "skills/reset/reset.py"

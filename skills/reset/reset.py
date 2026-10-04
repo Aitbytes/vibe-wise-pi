@@ -11,6 +11,12 @@ import sys
 import tempfile
 
 
+# Upstream parity. Note: this cannot prevent caching of this module itself
+# (the loader compiles it before the body runs); the tests set
+# sys.dont_write_bytecode before import-loading this file.
+sys.dont_write_bytecode = True
+
+
 def state_directory(cwd):
     """Find the nearest notes directory without crossing a Git project boundary.
 
